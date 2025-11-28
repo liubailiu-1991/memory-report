@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>红色舞台 · 出场退场动效最终版</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000;
+    }
+
+    /* ===== 右上角：触发退场按钮（预览用，上线可删） ===== */
+    .exit-btn {
+      position: fixed;
+      right: 20px;
+      top: 16px;
+      z-index: 200;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
+    .exit-btn:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* ===== 顶部用户名称卷轴（新增文本） ===== */
+    .name-scroll {
+      position: fixed;
+      top: 16px; /* 改为 16px */
+      left: 50%;
+      width: 352px;
+      height: 86px;
+      transform: translate(-50%, 0) scale(1);
+      background: url("https://p1.ssl.qhimg.com/t110b9a9301cf42603c3838099e.png") center/contain no-repeat;
+      z-index: 120;
+      opacity: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* 出场：最先出现 */
+      animation: nameEnter 0.35s ease-out forwards 0s;
+    }
+
+    .name-scroll-text {
+      width: 270px;
+      font-size: 14px;
+      color: #000000;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @keyframes nameEnter {
+      from { opacity: 0; transform: translate(-50%, -20px) scale(0.95); }
+      to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+    /* 退场：卷轴先轻微上移淡出 */
+    body.exit .name-scroll {
+      animation: nameExit 0.25s ease-in forwards 0s;
+    }
+    @keyframes nameExit {
+      from { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      to   { opacity: 0; transform: translate(-50%, -20px) scale(0.95); }
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 120px;
+      overflow: hidden;
+    }
+
+    /* ===== 覆盖“网页”的黑色遮罩 ===== */
+    .page-dark-mask {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6); /* #000000 60% */
+      z-index: 10;
+      pointer-events: none;
+      animation: pageMaskIn 0.25s ease-out forwards;
+    }
+
+    /* ===== 上下黑色渐变遮罩：最上层 ===== */
+    .stage::before,
+    .stage::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2560px;
+      height: 27%;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .stage::before {
+      top: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.98),
+        rgba(0, 0, 0, 0.75),
+        rgba(0, 0, 0, 0)
+      );
+    }
+    .stage::after {
+      bottom: 0;
+      background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.99),
+        rgba(0, 0, 0, 0.75),
+        rgba(0, 0, 0, 0)
+      );
+    }
+
+    /* ===== 中间矩形黑色遮罩：在红色动效下面 ===== */
+    .bottom-mask {
+      position: absolute;
+      width: 700px;
+      height: 800px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      border-radius: 0;
+      background: radial-gradient(circle,
+        rgba(0, 0, 0, 0.98) 0%,
+        rgba(0, 0, 0, 0.97) 40%,
+        rgba(0, 0, 0, 0.85) 65%,
+        rgba(0, 0, 0, 0.0) 90%
+      );
+      filter: blur(30px);
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0;
+      animation: bottomMaskIn 0.3s ease-out forwards 0.1s;
+    }
+
+    /* ===== 红色动效容器 ===== */
+    .bg-columns {
+      position: relative;
+      z-index: 30;
+      width: 60%;
+      max-width: 980px;
+      height: 90%;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: bgEnter 0.4s ease-out forwards 0.15s;
+    }
+
+    /* ===== 红色空间结构 ===== */
+    .layer-back {
+      position: absolute;
+      top: -12%;
+      bottom: -12%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 44%;
+      background: linear-gradient(
+        to bottom,
+        #120004 0%,
+        #210008 25%,
+        #29000a 50%,
+        #210008 75%,
+        #100003 100%
+      );
+      opacity: 0.9;
+      filter: blur(10px);
+      z-index: 0;
+    }
+
+    .layer-mid {
+      position: absolute;
+      top: -8%;
+      bottom: -8%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 32%;
+      background: linear-gradient(
+        to bottom,
+        #200005 0%,
+        #34000a 25%,
+        #43000d 50%,
+        #34000a 75%,
+        #1f0005 100%
+      );
+      opacity: 0.95;
+      filter: blur(4px);
+      z-index: 1;
+      animation: midPulse 4.2s ease-in-out infinite 0.7s;
+    }
+
+    .center-panel {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 18%;
+      background: linear-gradient(
+        to bottom,
+        #340009 0%,
+        #6c0d1f 25%,
+        #8b152b 50%,
+        #6c0d1f 75%,
+        #340009 100%
+      );
+      box-shadow:
+        0 0 24px rgba(180, 35, 70, 0.95),
+        0 0 120px rgba(140, 20, 45, 0.95);
+      z-index: 4;
+      animation: centerPulse 3.2s ease-in-out infinite 0.9s;
+    }
+
+    .center-glow {
+      position: absolute;
+      inset: -4%;
+      background: radial-gradient(circle at center,
+        rgba(210, 60, 100, 0.4) 0%,
+        rgba(150, 30, 60, 0.34) 18%,
+        rgba(80, 10, 25, 0.14) 40%,
+        rgba(10, 0, 5, 0.0) 65%);
+      mix-blend-mode: screen;
+      z-index: 2;
+      animation: glowWave 4.5s ease-in-out infinite 1s;
+    }
+
+    .side-panel {
+      position: absolute;
+      top: -6%;
+      bottom: -6%;
+      width: 10%;
+      background: linear-gradient(
+        to bottom,
+        #130003 0%,
+        #260007 25%,
+        #2f0009 50%,
+        #260007 75%,
+        #130003 100%
+      );
+      opacity: 0.75;
+      filter: blur(2px);
+      z-index: 3;
+    }
+    .side-panel.left  { left: 26%; }
+    .side-panel.right { right: 26%; }
+
+    .side-line {
+      position: absolute;
+      top: -8%;
+      bottom: -8%;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      opacity: 0.45;
+      filter: blur(1px);
+      mix-blend-mode: screen;
+      z-index: 4;
+    }
+    .side-line.left  { left: 26%; }
+    .side-line.right { right: 26%; }
+
+    .side-strip {
+      position: absolute;
+      top: -6%;
+      bottom: -6%;
+      background: linear-gradient(
+        to bottom,
+        #120003 0%,
+        #230006 25%,
+        #2a0008 50%,
+        #230006 75%,
+        #120003 100%
+      );
+      opacity: 0.55;
+      filter: blur(3px);
+      z-index: 2;
+    }
+    .side-strip.l1 { left: 22%; width: 8%; opacity: 0.55; }
+    .side-strip.l2 { left: 18%; width: 6%; opacity: 0.45; }
+    .side-strip.l3 { left: 15%; width: 4%; opacity: 0.35; }
+    .side-strip.r1 { right: 22%; width: 8%; opacity: 0.55; }
+    .side-strip.r2 { right: 18%; width: 6%; opacity: 0.45; }
+    .side-strip.r3 { right: 15%; width: 4%; opacity: 0.35; }
+
+    .center-edge {
+      position: absolute;
+      top: -12%;
+      bottom: -12%;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.16) 12%,
+        rgba(255, 255, 255, 0.5) 50%,
+        rgba(255, 255, 255, 0.16) 88%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      box-shadow: 0 0 6px rgba(255, 220, 210, 0.5);
+      mix-blend-mode: screen;
+      z-index: 6;
+      animation: edgePulse 2.6s ease-in-out infinite 1s;
+    }
+    .center-edge.left  { left: calc(50% - 9% - 0.5px); }
+    .center-edge.right { right: calc(50% - 9% - 0.5px); animation-delay: 0.4s; }
+
+    .white-streak {
+      position: absolute;
+      top: -15%;
+      bottom: -15%;
+      width: 1px;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.16) 45%,
+        rgba(255, 255, 255, 0.26) 50%,
+        rgba(255, 255, 255, 0.16) 55%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      opacity: 0.2;
+      filter: blur(2px);
+      mix-blend-mode: screen;
+      z-index: 3;
+      animation: streakFloat 5s ease-in-out infinite alternate 1.2s;
+    }
+    .ws1 { left: 44%; }
+    .ws2 { left: 38%; animation-delay: 1.5s; }
+    .ws3 { right: 44%; animation-delay: 1.8s; }
+    .ws4 { right: 38%; animation-delay: 2.1s; }
+    .ws5 { left: 50%; transform: translateX(-50%); opacity: 0.28; animation-delay: 2.4s; }
+
+    .beam-mid {
+      position: absolute;
+      top: -6%;
+      bottom: -6%;
+      width: 9%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 70, 90, 0) 0%,
+        rgba(255, 60, 80, 0.38) 25%,
+        rgba(255, 40, 70, 0.7) 50%,
+        rgba(255, 60, 80, 0.38) 75%,
+        rgba(255, 70, 90, 0) 100%
+      );
+      opacity: 0.42;
+      filter: blur(2.2px);
+      mix-blend-mode: screen;
+      z-index: 5;
+      animation: beamSwing 3.8s ease-in-out infinite alternate 1.4s;
+    }
+    .beam-mid.l { left: 30%; }
+    .beam-mid.r { right: 30%; animation-delay: 1.8s; }
+
+    .beam-side {
+      position: absolute;
+      top: -10%;
+      bottom: -10%;
+      width: 7%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 40, 60, 0) 0%,
+        rgba(200, 25, 50, 0.4) 45%,
+        rgba(200, 25, 50, 0.5) 50%,
+        rgba(200, 25, 50, 0.4) 55%,
+        rgba(255, 40, 60, 0) 100%
+      );
+      opacity: 0.18;
+      filter: blur(8px);
+      mix-blend-mode: screen;
+      z-index: 1;
+      animation: sideBeamFloat 5.2s ease-in-out infinite alternate 1.6s;
+    }
+    .beam-side.sl1 { left: 18%; }
+    .beam-side.sr1 { right: 18%; }
+
+    .beam-far {
+      position: absolute;
+      top: -8%;
+      bottom: -8%;
+      width: 9%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 30, 50, 0) 0%,
+        rgba(150, 10, 30, 0.3) 50%,
+        rgba(255, 30, 50, 0) 100%
+      );
+      opacity: 0.1;
+      filter: blur(11px);
+      mix-blend-mode: screen;
+      z-index: 0;
+      animation: farFade 5.8s ease-in-out infinite alternate 1.8s;
+    }
+    .beam-far.l1 { left: 10%; }
+    .beam-far.r1 { right: 10%; }
+
+    .scanline {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 18%;
+      height: 200%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.35) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      opacity: 0;
+      mix-blend-mode: screen;
+      z-index: 7;
+      animation: scanDown 6s.ease-in-out infinite 2.2s;
+      pointer-events: none;
+    }
+
+    /* ===== 粒子 ===== */
+    .particles {
+      position: absolute;
+      top: 5%;
+      bottom: 25%;
+      left: 20%;
+      right: 20%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 9;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle,
+        rgba(255, 230, 180, 0.95) 0%,
+        rgba(255, 200, 100, 0.1) 60%,
+        rgba(255, 200, 100, 0) 100%);
+      box-shadow: 0 0 12px rgba(255, 210, 120, 0.9);
+      opacity: 0;
+      animation: floatUp 3s linear infinite;
+    }
+
+    .p1  { width:3px; height:3px; left:48%; bottom:5%;  }
+    .p2  { width:4px; height:4px; left:52%; bottom:18%; animation-delay:-0.3s; }
+    .p3  { width:5px; height:5px; left:44%; bottom:26%; animation-delay:-0.6s; }
+    .p4  { width:3px; height:3px; left:56%; bottom:12%; animation-delay:-0.9s; }
+    .p5  { width:6px; height:6px; left:40%; bottom:20%; animation-delay:-1.2s; }
+    .p6  { width:4px; height:4px; left:60%; bottom:22%; animation-delay:-1.5s; }
+    .p7  { width:5px; height:5px; left:46%; bottom:34%; animation-delay:-1.8s; }
+    .p8  { width:3px; height:3px; left:54%; bottom:30%; animation-delay:-2.1s; }
+    .p9  { width:4px; height:4px; left:42%; bottom:40%; animation-delay:-2.4s; }
+    .p10 { width:6px; height:6px; left:58%; bottom:38%; animation-delay:-2.7s; }
+    .p11 { width:3px; height:3px; left:50%; bottom:45%; animation-delay:-3.0s; }
+    .p12 { width:4px; height:4px; left:47%; bottom:10%; animation-delay:-3.3s; }
+    .p13 { width:5px; height:5px; left:36%; bottom:18%; animation-delay:-0.45s; }
+    .p14 { width:3px; height:3px; left:64%; bottom:16%; animation-delay:-0.75s; }
+    .p15 { width:4px; height:4px; left:38%; bottom:32%; animation-delay:-1.05s; }
+    .p16 { width:5px; height:5px; left:62%; bottom:30%; animation-delay:-1.35s; }
+    .p17 { width:3px; height:3px; left:43%; bottom:50%; animation-delay:-1.65s; }
+    .p18 { width:4px; height:4px; left:57%; bottom:48%; animation-delay:-1.95s; }
+    .p19 { width:6px; height:6px; left:49%; bottom:55%; animation-delay:-2.25s; }
+    .p20 { width:3px; height:3px; left:52%; bottom:60%; animation-delay:-2.55s; }
+    .p21 { width:4px; height:4px; left:45%; bottom:65%; animation-delay:-2.85s; }
+    .p22 { width:5px; height:5px; left:55%; bottom:68%; animation-delay:-3.15s; }
+    .p23 { width:3px; height:3px; left:41%; bottom:28%; animation-delay:-3.45s; }
+    .p24 { width:4px; height:4px; left:59%; bottom:26%; animation-delay:-3.75s; }
+
+    /* ===== 中心：Logo 序列帧 + 文字序列帧 ===== */
+    .center-image {
+      position: absolute;
+      z-index: 20;
+      left: 50%;
+      top: 45%;
+      transform: translate(-50%, -50%) scale(0.9);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      /* 出场时间提前，衔接更顺 */
+      animation: centerEnter 0.35s ease-out forwards 0.35s;
+    }
+
+    /* Logo 序列帧（地址已替换） */
+    .logo-anim {
+      width: 264px;
+      height: 214px;
+      margin: 0 auto;
+      background-image: url("https://p4.ssl.qhimg.com/t110b9a9301c4b629f442e387c8.png");
+      background-repeat: no-repeat;
+      background-size: auto 214px;
+      animation: logoPlay 3s steps(60) infinite 0.65s; /* 稍晚一点开始播放 */
+    }
+    @keyframes logoPlay {
+      from { background-position: 0 0; }
+      to   { background-position: -15840px 0; } /* 264 * 60 */
+    }
+
+    /* 文字序列帧（地址已替换） */
+    .title-anim {
+      width: 460px;
+      height: 136px;
+      margin: 8px auto 0;
+      background-image: url("https://p5.ssl.qhimg.com/t110b9a93010bcda6b752b3c88d.png");
+      background-repeat: no-repeat;
+      background-size: auto 136px;
+      animation: titlePlay 1s steps(20) infinite 0.65s;
+    }
+    @keyframes titlePlay {
+      from { background-position: 0 0; }
+      to   { background-position: -9200px 0; } /* 460 * 20 */
+    }
+
+    /* ================== 出场动效 Keyframes ================== */
+
+    @keyframes pageMaskIn {
+      from { opacity: 1; }
+      to   { opacity: 0.6; }
+    }
+
+    @keyframes bottomMaskIn {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    @keyframes bgEnter {
+      from { opacity: 0; transform: translateY(40px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes centerEnter {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+      to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    /* ================== 退场动效（body.exit 时触发） ================== */
+
+    body.exit .center-image {
+      animation: centerExit 0.2s ease-in forwards;
+    }
+    @keyframes centerExit {
+      from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      to   { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    }
+
+    body.exit .bg-columns {
+      animation: bgExit 0.35s ease-in forwards 0.05s;
+    }
+    @keyframes bgExit {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(20px); }
+    }
+
+    body.exit .bottom-mask {
+      animation: bottomMaskOut 0.3s ease-in forwards 0.1s;
+    }
+    @keyframes bottomMaskOut {
+      from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      to   { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    }
+
+    body.exit .page-dark-mask {
+      animation: pageMaskOut 0.35s ease-in forwards 0.15s;
+    }
+    @keyframes pageMaskOut {
+      from { opacity: 0.6; }
+      to   { opacity: 1; }
+    }
+
+    /* ================== 循环氛围动画 ================== */
+    @keyframes midPulse {
+      0%   { opacity: 0.9; }
+      50%  { opacity: 1; }
+      100% { opacity: 0.92; }
+    }
+
+    @keyframes centerPulse {
+      0%   { opacity: 0.96; box-shadow: 0 0 18px rgba(170,35,65,.85), 0 0 90px rgba(130,20,40,.9); }
+      50%  { opacity: 1;    box-shadow: 0 0 30px rgba(210,65,105,1), 0 0 150px rgba(170,40,80,1); }
+      100% { opacity: 0.97; box-shadow: 0 0 18px rgba(170,35,65,.85), 0 0 90px rgba(130,20,40,.9); }
+    }
+
+    @keyframes glowWave {
+      0%   { opacity: 0.6; transform: scale(1); }
+      50%  { opacity: 0.9; transform: scale(1.03); }
+      100% { opacity: 0.65; transform: scale(1); }
+    }
+
+    @keyframes edgePulse {
+      0%   { opacity: 0.5; }
+      50%  { opacity: 0.9; }
+      100% { opacity: 0.55; }
+    }
+
+    @keyframes streakFloat {
+      0%   { transform: translateX(0); opacity: 0.14; }
+      50%  { transform: translateX(-4px); opacity: 0.24; }
+      100% { transform: translateX(3px); opacity: 0.18; }
+    }
+
+    @keyframes beamSwing {
+      0%   { transform: translate(0, 4px); opacity: 0.38; }
+      50%  { transform: translate(-10px, -12px); opacity: 0.55; }
+      100% { transform: translate(6px, 8px); opacity: 0.42; }
+    }
+
+    @keyframes sideBeamFloat {
+      0%   { transform: translate(0, 6px); opacity: 0.16; }
+      50%  { transform: translate(-8px, -10px); opacity: 0.22; }
+      100% { transform: translate(5px, 8px); opacity: 0.18; }
+    }
+
+    @keyframes farFade {
+      0%   { opacity: 0.05; filter: blur(11px); }
+      50%  { opacity: 0.15; filter: blur(8px); }
+      100% { opacity: 0.08; filter: blur(11px); }
+    }
+
+    @keyframes scanDown {
+      0%   { transform: translate(-50%, -210%); opacity: 0; }
+      15%  { opacity: 0; }
+      30%  { transform: translate(-50%, -40%); opacity: 0.4; }
+      50%  { transform: translate(-50%, 40%);  opacity: 0.2; }
+      65%  { transform: translate(-50%, 210%); opacity: 0; }
+      100% { transform: translate(-50%, 210%); opacity: 0; }
+    }
+
+    @keyframes floatUp {
+      0%   { transform: translateY(0) scale(0.9); opacity: 0; }
+      15%  { opacity: 1; }
+      65%  { opacity: 0.7; }
+      100% { transform: translateY(-90px) scale(1.1); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="exit-btn" id="exitBtn">播放退场动效</button>
+
+  <!-- 顶部用户名称卷轴 -->
+  <div class="name-scroll">
+    <div class="name-scroll-text">亲爱的Lv.5玩家 333444666999</div>
+  </div>
+
+  <!-- 黑色遮罩 -->
+  <div class="page-dark-mask"></div>
+
+  <div class="stage">
+    <!-- 中间矩形黑色遮罩 -->
+    <div class="bottom-mask"></div>
+
+    <!-- 红色舞台整体 -->
+    <div class="bg-columns">
+      <div class="layer-back"></div>
+      <div class="layer-mid"></div>
+      <div class="center-panel"></div>
+      <div class="center-glow"></div>
+
+      <!-- 左右竖条 -->
+      <div class="side-strip l1"></div>
+      <div class="side-strip l2"></div>
+      <div class="side-strip l3"></div>
+      <div class="side-strip r1"></div>
+      <div class="side-strip r2"></div>
+      <div class="side-strip r3"></div>
+
+      <!-- 左右立柱 + 边线 -->
+      <div class="side-panel left"></div>
+      <div class="side-panel right"></div>
+      <div class="side-line left"></div>
+      <div class="side-line right"></div>
+
+      <!-- 光束线 -->
+      <div class="white-streak ws1"></div>
+      <div class="white-streak ws2"></div>
+      <div class="white-streak ws3"></div>
+      <div class="white-streak ws4"></div>
+      <div class="white-streak ws5"></div>
+
+      <div class="beam-mid l"></div>
+      <div class="beam-mid r"></div>
+      <div class="beam-side sl1"></div>
+      <div class="beam-side sr1"></div>
+      <div class="beam-far l1"></div>
+      <div class="beam-far r1"></div>
+
+      <!-- 扫描光 -->
+      <div class="scanline"></div>
+
+      <!-- 中心内容：Logo + 文字 序列帧 -->
+      <div class="center-image">
+        <div class="logo-anim"></div>
+        <div class="title-anim"></div>
+      </div>
+
+      <!-- 粒子 -->
+      <div class="particles">
+        <span class="particle p1"></span><span class="particle p2"></span>
+        <span class="particle p3"></span><span class="particle p4"></span>
+        <span class="particle p5"></span><span class="particle p6"></span>
+        <span class="particle p7"></span><span class="particle p8"></span>
+        <span class="particle p9"></span><span class="particle p10"></span>
+        <span class="particle p11"></span><span class="particle p12"></span>
+        <span class="particle p13"></span><span class="particle p14"></span>
+        <span class="particle p15"></span><span class="particle p16"></span>
+        <span class="particle p17"></span><span class="particle p18"></span>
+        <span class="particle p19"></span><span class="particle p20"></span>
+        <span class="particle p21"></span><span class="particle p22"></span>
+        <span class="particle p23"></span><span class="particle p24"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 点击按钮触发退场动效（给 body 加 .exit）
+    document.getElementById('exitBtn').addEventListener('click', function () {
+      document.body.classList.add('exit');
+    });
+  </script>
+</body>
+</html>
