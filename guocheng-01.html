@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>红色荣耀背景动效 Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 舞台容器：居中、适配游戏启动页 */
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center,
+                #120000 0%, #050203 55%, #000 100%);
+    }
+
+    /* 竖条背景区域 */
+    .bg-columns {
+      position: relative;
+      width: 70%;          /* 中间区域宽度，可按设计改 */
+      max-width: 1100px;
+      height: 90%;
+      overflow: hidden;
+    }
+
+    /* 公共竖条样式 */
+    .beam {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 90, 90, 0) 0%,
+        rgba(255, 90, 110, 0.45) 25%,
+        rgba(255, 40, 75, 0.9) 50%,
+        rgba(255, 60, 110, 0.4) 75%,
+        rgba(255, 90, 90, 0) 100%
+      );
+      filter: blur(1px);
+      mix-blend-mode: screen;
+    }
+
+    /* 中央主光柱（偏宽、最亮） */
+    .beam-main {
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26%;
+      opacity: 0.85;
+      box-shadow:
+        0 0 40px rgba(255, 40, 80, 0.8),
+        0 0 120px rgba(255, 40, 80, 0.6);
+      animation:
+        mainPulse 5s ease-in-out infinite;
+    }
+
+    /* 左右较宽竖条 */
+    .beam-wide-left,
+    .beam-wide-right {
+      width: 16%;
+      opacity: 0.45;
+      filter: blur(2px);
+      animation:
+        sideFloat 8s ease-in-out infinite alternate;
+    }
+    .beam-wide-left  { left: 28%; }
+    .beam-wide-right { right: 28%; animation-delay: -2s; }
+
+    /* 多根细竖条，用来增加层次 */
+    .beam-thin {
+      width: 4%;
+      opacity: 0.15;
+      filter: blur(3px);
+      animation:
+        thinDrift 9s ease-in-out infinite alternate;
+    }
+    .beam-thin.l1 { left: 17%; animation-delay: -1s; }
+    .beam-thin.l2 { left: 36%; animation-delay: -3s; }
+    .beam-thin.r1 { right: 19%; animation-delay: -2s; }
+    .beam-thin.r2 { right: 34%; animation-delay: -4s; }
+
+    /* 稍远处更暗的竖条，营造空间深度 */
+    .beam-soft {
+      width: 10%;
+      opacity: 0.12;
+      filter: blur(8px);
+      animation:
+        softFade 7s ease-in-out infinite alternate;
+    }
+    .beam-soft.sl { left: 8%; }
+    .beam-soft.sr { right: 8%; animation-delay: -2s; }
+
+    /* 扫描光线（偶尔从上往下扫一下） */
+    .scanline {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 30%;
+      height: 160%;
+      background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.28) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      opacity: 0;
+      mix-blend-mode: screen;
+      animation: scanDown 10s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    /* 粒子层 */
+    .particles {
+      position: absolute;
+      inset: 5% 15%;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: radial-gradient(circle,
+                   rgba(255, 230, 180, 0.95) 0%,
+                   rgba(255, 200, 100, 0.1) 60%,
+                   rgba(255, 200, 100, 0) 100%);
+      box-shadow: 0 0 12px rgba(255, 210, 120, 0.8);
+      opacity: 0;
+      animation: floatUp 9s linear infinite;
+    }
+
+    /* 随机摆几个粒子的位置和节奏 */
+    .p1 { left: 32%; bottom: 8%;  animation-delay: 0s;  }
+    .p2 { left: 45%; bottom: 18%; animation-delay: -3s; }
+    .p3 { left: 56%; bottom: 5%;  animation-delay: -6s; }
+    .p4 { left: 40%; bottom: 35%; animation-delay: -1s; }
+    .p5 { left: 60%; bottom: 28%; animation-delay: -4s; }
+    .p6 { left: 25%; bottom: 22%; animation-delay: -7s; }
+    .p7 { left: 70%; bottom: 16%; animation-delay: -2s; }
+    .p8 { left: 52%; bottom: 42%; animation-delay: -5s; }
+
+    /* =================== 动画定义 =================== */
+
+    /* 中央主光柱：亮度呼吸 */
+    @keyframes mainPulse {
+      0%   { opacity: 0.7; box-shadow:
+              0 0 25px rgba(255, 40, 80, 0.6),
+              0 0 80px rgba(255, 40, 80, 0.3); }
+      50%  { opacity: 0.95; box-shadow:
+              0 0 45px rgba(255, 60, 120, 0.9),
+              0 0 140px rgba(255, 60, 120, 0.6); }
+      100% { opacity: 0.75; box-shadow:
+              0 0 25px rgba(255, 40, 80, 0.6),
+              0 0 80px rgba(255, 40, 80, 0.3); }
+    }
+
+    /* 宽竖条：左右轻轻漂移 + 轻微上下 */
+    @keyframes sideFloat {
+      0%   { transform: translate(0, 4px); }
+      50%  { transform: translate(-6px, -2px); }
+      100% { transform: translate(3px, 3px); }
+    }
+
+    /* 细竖条：随机错位感 */
+    @keyframes thinDrift {
+      0%   { transform: translate(0, 0); opacity: 0.10; }
+      50%  { transform: translate(-4px, -10px); opacity: 0.22; }
+      100% { transform: translate(3px, 6px); opacity: 0.12; }
+    }
+
+    /* 远景竖条：渐隐渐现 + 模糊深浅变化 */
+    @keyframes softFade {
+      0%   { opacity: 0.06; filter: blur(10px); }
+      50%  { opacity: 0.18; filter: blur(6px); }
+      100% { opacity: 0.08; filter: blur(10px); }
+    }
+
+    /* 扫描光线：偶尔从上往下扫一遍 */
+    @keyframes scanDown {
+      0%   { transform: translate(-50%, -140%); opacity: 0; }
+      10%  { opacity: 0; }
+      20%  { transform: translate(-50%, -40%); opacity: 0.35; }
+      40%  { transform: translate(-50%, 40%);  opacity: 0.18; }
+      50%  { transform: translate(-50%, 140%); opacity: 0; }
+      100% { transform: translate(-50%, 140%); opacity: 0; }
+    }
+
+    /* 粒子：缓慢向上漂浮 + 淡入淡出 */
+    @keyframes floatUp {
+      0%   { transform: translateY(0);   opacity: 0; }
+      10%  { opacity: 0.9; }
+      60%  { opacity: 0.6; }
+      100% { transform: translateY(-60px); opacity: 0; }
+    }
+
+    /* 中心放勋章/标题的区域示意（可替换为真实 UI） */
+    .center-slot {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;   /* 仅示意，可以删掉 */
+    }
+    .center-demo {
+      padding: 20px 40px;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 220, 150, 0.7);
+      background: radial-gradient(circle at top,
+                   rgba(255, 250, 210, 0.2) 0%,
+                   rgba(30, 0, 0, 0.7) 60%,
+                   rgba(0, 0, 0, 0.9) 100%);
+      color: #ffd58a;
+      font-size: 20px;
+      letter-spacing: 4px;
+      text-shadow:
+        0 0 6px rgba(0, 0, 0, 0.9),
+        0 0 18px rgba(255, 200, 120, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="bg-columns">
+      <!-- 竖条结构：可根据视觉需要增减 -->
+      <div class="beam beam-soft sl"></div>
+      <div class="beam beam-soft sr"></div>
+
+      <div class="beam beam-thin l1"></div>
+      <div class="beam beam-thin l2"></div>
+      <div class="beam beam-thin r1"></div>
+      <div class="beam beam-thin r2"></div>
+
+      <div class="beam beam-wide-left"></div>
+      <div class="beam beam-wide-right"></div>
+
+      <div class="beam beam-main"></div>
+
+      <!-- 扫描光线 -->
+      <div class="scanline"></div>
+
+      <!-- 粒子层 -->
+      <div class="particles">
+        <span class="particle p1"></span>
+        <span class="particle p2"></span>
+        <span class="particle p3"></span>
+        <span class="particle p4"></span>
+        <span class="particle p5"></span>
+        <span class="particle p6"></span>
+        <span class="particle p7"></span>
+        <span class="particle p8"></span>
+      </div>
+    </div>
+
+    <!-- 中心区域：这里换成你的勋章 + 文案即可 -->
+    <div class="center-slot">
+      <div class="center-demo">
+        携专属荣光闪耀全场 · 今日继续封神
+      </div>
+    </div>
+  </div>
+</body>
+</html>
