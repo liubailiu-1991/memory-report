@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>红色舞台背景 v3（包含中心图）</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center,
+        #180104 0%,
+        #050103 55%,
+        #000 100%);
+    }
+
+    .bg-columns {
+      position: relative;
+      width: 70%;
+      max-width: 1100px;
+      height: 90%;
+      overflow: hidden;
+    }
+
+    /* 上下黑色渐变 */
+    .bg-columns::before,
+    .bg-columns::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 25%;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .bg-columns::before {
+      top: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0));
+    }
+    .bg-columns::after {
+      bottom: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.98), rgba(0,0,0,0));
+    }
+
+    /* 背板 */
+    .back-panel {
+      position: absolute;
+      top: -5%;
+      bottom: -5%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 34%;
+      background: linear-gradient(to bottom,
+        #260006, #7f1524, #260006);
+      opacity: 0.85;
+      filter: blur(1px);
+      box-shadow: 0 0 60px rgba(140,20,40,0.9);
+      z-index: 1;
+      animation: backPulse 4s ease-in-out infinite;
+    }
+
+    /* 主窄红板 */
+    .center-panel {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 22%;
+      background: linear-gradient(to bottom,
+        #4a000b, #ea3050, #4a000b);
+      z-index: 3;
+      box-shadow: 0 0 150px rgba(230,40,70,0.95);
+      animation: centerPulse 3s ease-in-out infinite;
+    }
+
+    /* 左右亮边光束 */
+    .center-edge {
+      position: absolute;
+      top: -8%;
+      bottom: -8%;
+      width: 4px;
+      background: linear-gradient(to bottom,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.95) 40%,
+        rgba(255,255,255,0.95) 60%,
+        rgba(255,255,255,0) 100%);
+      box-shadow: 0 0 50px rgba(255,150,150,1);
+      mix-blend-mode: screen;
+      z-index: 4;
+      animation: edgeBlink 2.3s ease-in-out infinite;
+    }
+    .center-edge.left { left: calc(50% - 11% - 2px);}
+    .center-edge.right { right: calc(50% - 11% - 2px); animation-delay:-.5s }
+
+    /* 中心光晕 */
+    .center-glow {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center,
+        rgba(250,60,90,0.7) 0%,
+        rgba(180,20,40,0.3) 45%,
+        rgba(0,0,0,0) 70%);
+      mix-blend-mode: screen;
+      z-index: 0;
+      animation: glowWave 4s ease-in-out infinite;
+    }
+
+    /* 光束（略） */
+    .beam { position:absolute; top:-5%; bottom:-5%; mix-blend-mode:screen; }
+    .beam-near { width:11%; background:linear-gradient(to bottom,rgba(255,80,80,0),rgba(255,50,70,.8),rgba(255,80,80,0)); opacity:.48; filter:blur(1.5px); animation:nearMove 4s ease-in-out infinite alternate; z-index:2;}
+    .beam-near.l1 { left:26%; }
+    .beam-near.r1 { right:26%; animation-delay:-1.2s;}
+
+    .beam-thin { width:3%; background:linear-gradient(to bottom,rgba(255,70,70,0),rgba(255,50,70,.7),rgba(255,70,70,0)); opacity:.28; filter:blur(2.5px); animation:thinMove 4.5s ease-in-out infinite alternate; z-index:2;}
+    .beam-thin.l2 { left:18%; animation-delay:-.6s }
+    .beam-thin.l3 { left:36%; animation-delay:-1.8s }
+    .beam-thin.r2 { right:20%; animation-delay:-2.4s }
+    .beam-thin.r3 { right:34%; animation-delay:-3s }
+
+    .beam-far { width:8%; background:linear-gradient(to bottom,rgba(255,60,60,0),rgba(255,35,60,.6),rgba(255,60,60,0)); opacity:.14; filter:blur(9px); z-index:1; animation:farFade 5s ease-in-out infinite alternate;}
+    .beam-far.l{ left:9%; }
+    .beam-far.r{ right:9%; animation-delay:-1.7s;}
+
+    /* 扫描光线 */
+    .scanline {
+      position:absolute;
+      left:50%; transform:translateX(-50%);
+      width:26%; height:180%;
+      background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.4),rgba(255,255,255,0));
+      mix-blend-mode:screen; opacity:0; z-index:6;
+      animation:scanDown 6s ease-in-out infinite;
+    }
+
+    /* 粒子 */
+    .particles { position:absolute; inset:6% 18%; z-index:8; pointer-events:none;}
+    .particle { width:4px; height:4px; position:absolute; border-radius:50%; background:radial-gradient(circle,rgba(255,230,180,.95),rgba(255,200,100,0)); box-shadow:0 0 12px rgba(255,210,120,.9); opacity:0; animation:floatUp 5s linear infinite;}
+    .p1 { left:42%; bottom:9%; }
+    .p2 { left:48%; bottom:24%; animation-delay:-1.2s }
+    .p3 { left:54%; bottom:12%; animation-delay:-2.6s }
+    .p4 { left:38%; bottom:35%; animation-delay:-3.5s }
+    .p5 { left:58%; bottom:30%; animation-delay:-4.3s }
+
+    /* ============= 核心加入：中心图片 ============= */
+    .center-image {
+      position: absolute;
+      z-index: 10; /* 最高层级，不会被挡 */
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      width: 340px;        /* 自动适配，可按你实际需求调 */
+      max-width: 32%;
+    }
+    .center-image img {
+      width: 100%;
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 0 20px rgba(255,190,200,0.8))
+              drop-shadow(0 0 40px rgba(230,40,80,0.9));
+    }
+
+    /* ================= 动画 ================= */
+    @keyframes backPulse {0%{opacity:.78}50%{opacity:1}100%{opacity:.8}}
+    @keyframes centerPulse {0%{opacity:.9}50%{opacity:1}100%{opacity:.92}}
+    @keyframes edgeBlink {0%{opacity:.7}50%{opacity:1}100%{opacity:.75}}
+    @keyframes glowWave {0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+    @keyframes nearMove {0%{transform:translate(0,6px)}50%{transform:translate(-12px,-14px)}100%{transform:translate(8px,8px)}}
+    @keyframes thinMove {0%{opacity:.22}50%{opacity:.36}100%{opacity:.24}}
+    @keyframes farFade {0%{opacity:.06}50%{opacity:.19}100%{opacity:.1}}
+    @keyframes scanDown {0%{transform:translate(-50%,-170%)}25%{opacity:.5}60%{transform:translate(-50%,170%)}100%{opacity:0}}
+    @keyframes floatUp {0%{opacity:0}10%{opacity:1}100%{transform:translateY(-80px);opacity:0}}
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <div class="bg-columns">
+
+      <div class="center-glow"></div>
+      <div class="back-panel"></div>
+      <div class="center-panel"></div>
+      <div class="center-edge left"></div>
+      <div class="center-edge right"></div>
+
+      <div class="beam beam-far l"></div>
+      <div class="beam beam-far r"></div>
+      <div class="beam beam-near l1"></div>
+      <div class="beam beam-near r1"></div>
+      <div class="beam beam-thin l2"></div>
+      <div class="beam beam-thin l3"></div>
+      <div class="beam beam-thin r2"></div>
+      <div class="beam beam-thin r3"></div>
+
+      <div class="scanline"></div>
+
+      <!-- 🌟 中心图像（新增） -->
+      <div class="center-image">
+        <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEJQl9pG977yTNB0zuiGOsX5Pap4X9jIwACISQAAova4VTqCm5sHaMJ7jYE.png" />
+      </div>
+
+      <div class="particles">
+        <span class="particle p1"></span>
+        <span class="particle p2"></span>
+        <span class="particle p3"></span>
+        <span class="particle p4"></span>
+        <span class="particle p5"></span>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
