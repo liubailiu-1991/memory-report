@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN"> <!-- 文档语言：中文（影响无障碍/翻译/字体选择等） -->
+<head>
+<meta charset="UTF-8"> <!-- 字符编码：UTF-8，确保中文不乱码 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 视口：移动端宽度=设备宽度，初始缩放=1 -->
+
+<title>Merged Search Workbench - Red Purple Blue Edition</title> <!-- 浏览器标签标题 -->
+
+<style>
+    :root {
+        /* =========================================================
+           ✅ 全局 CSS 变量（“调参总控台”）
+           ========================================================= */
+
+        --bg-body: #e0e0e0; /* 页面最外层背景色：舞台外灰底，用于衬托中间白色主舞台 */
+
+        /* =========================================================
+           ✅ 扇叶动效参数（核心尺寸与分片）
+           ========================================================= */
+        --w: 1000px;    /* 扇叶动效区域“逻辑宽度”：JS 计算扇叶片数量的依据，同时用于 fan-stage 宽度 */
+        --h: 324px;     /* 扇叶动效区域高度：决定扇叶色块区域的高度 */
+        --top: 180px;   /* 扇叶动效区域距离舞台顶部：控制扇叶在画布中的纵向位置 */
+        --panelW: 72px; /* 单片扇叶宽度：越小片数越多越细腻；越大更粗更少片 */
+        --lineW: 2px;   /* 扇叶分片之间白色分割线宽度：控制“白线粗细” */
+        --line: rgba(255,255,255,.60); /* 分割线颜色/透明度：白色 60% 透明，影响线的显眼程度 */
+
+        /* =========================================================
+           ✅ 动画节奏（已加速）
+           ========================================================= */
+        --stagger: 0.06s; /* 相邻扇叶片启动延迟：控制“从左到右扫过”的速度（越小越快） */
+        --flipDur: 0.7s;  /* 单片扇叶翻转耗时：控制每片翻开/翻折的速度（越小越利落） */
+        --loopGap: 0.5s;  /* 周期尾部留白时间：用于 JS 计算总周期，提供结束缓冲 */
+
+        /* =========================================================
+           ✅ 遮罩与羽化（保持不变）
+           ========================================================= */
+        --maskSolid: 42%;         /* 中心完全显示区域比例：越大中心越“实” */
+        --maskFeatherStart: 58%;  /* 羽化开始位置：从这里开始逐渐变透明 */
+        --maskFeatherEnd: 99%;    /* 羽化接近结束位置：越接近 100% 尾巴越长更柔 */
+        --edgeFade: 120px;        /* 四周边缘渐隐距离：越大越不容易出现“切割硬边” */
+
+        /* =========================================================
+           ✅ 扇页颜色（保持 Super Light 极淡风格）
+           ========================================================= */
+        --panelTint: 0.06; /* 扇叶本体“彩色映射强度”总阀门：越大扇叶本身越彩 */
+        --panelSat: 0.10;  /* 扇叶本体饱和度：越大越鲜艳（目前极淡） */
+
+        /* =========================================================
+           ✅ 彩色底（保持减淡后的参数）
+           ========================================================= */
+        --bleedOpacity: .60;   /* 彩色底最终透明度：越大底色越明显 */
+        --bleedBlur: 16px;     /* 彩色底模糊半径：越大越云雾化 */
+        --bleedSat: 0.90;      /* 彩色底饱和度：越大越彩 */
+        --bleedContrast: 1.0;  /* 彩色底对比度：越大明暗更强、层次更硬 */
+
+        --aL1: .24; /* 线性渐变左段（红）透明度 */
+        --aL2: .22; /* 线性渐变中段（紫）透明度 */
+        --aL3: .20; /* 线性渐变右段（蓝）透明度 */
+
+        --aR1: .46; /* 径向光团1（红）透明度 */
+        --aR2: .40; /* 径向光团2（紫）透明度 */
+        --aR3: .36; /* 径向光团3（蓝）透明度 */
+
+        --bleedIntroDelay: 0.08s; /* 彩色底入场延迟：页面出现后延迟多久开始淡入 */
+        --bleedIntroDur: 0.55s;   /* 彩色底入场时长：从透明到目标状态的过渡时间 */
+    }
+
+    /* =========================================================
+       1) 页面整体布局（舞台外层）
+       ========================================================= */
+    body {
+        margin: 0; /* 清除浏览器默认 margin，避免画面偏移 */
+        height: 100vh; /* 页面高度=视口高度，用于居中舞台 */
+        display: flex; /* 使用 flex 布局，方便居中 */
+        justify-content: center; /* 水平居中 */
+        align-items: center; /* 垂直居中 */
+        background-color: var(--bg-body); /* 背景色取全局变量 --bg-body */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* 字体栈：优先系统字体 */
+        overflow: hidden; /* 隐藏溢出，避免模糊/动画导致滚动条 */
+    }
+
+    /* =========================================================
+       2) 核心容器（主舞台）
+       ========================================================= */
+    .stage-container {
+        position: relative; /* 相对定位：作为内部绝对定位元素的参照 */
+        width: 1440px; /* 舞台宽度：固定 1440 */
+        height: 900px; /* 舞台高度：固定 900 */
+        background-color: #ffffff; /* 舞台背景：白色 */
+        box-shadow: 0 0 30px rgba(0,0,0,0.1); /* 阴影：让舞台从外层背景里“浮起来” */
+        overflow: hidden; /* 裁切溢出：防止内部模糊溢出舞台边界 */
+        display: flex; /* 内部使用 flex */
+        flex-direction: column; /* 内部纵向排布 */
+        align-items: center; /* 内部内容水平居中 */
+        padding-top: 119px; /* 顶部预留：给 header 图腾出空间 */
+        box-sizing: border-box; /* 盒模型：padding 不会撑大 width/height */
+    }
+
+    /* =========================================
+       浏览器头部样式
+       ======================================== */
+    .browser-header {
+        position: absolute; /* 绝对定位：贴在舞台顶部 */
+        top: 0; /* 顶部对齐 */
+        left: 0; /* 左侧对齐 */
+        width: 1440px; /* 宽度匹配舞台 */
+        height: 119px; /* 高度匹配 header 区域 */
+        z-index: 100; /* 层级很高：压在动效和内容之上 */
+        pointer-events: none; /* 不响应鼠标：避免挡住交互 */
+        object-fit: cover; /* 图片铺满容器，必要时裁切 */
+    }
+
+    /* =========================================
+       底部彩色光效 (Aurora)
+       ========================================= */
+    .aurora-layer {
+        position: absolute; /* 绝对定位：贴在舞台底部 */
+        bottom: 0; /* 底部对齐 */
+        left: 0; /* 左侧对齐 */
+        width: 100%; /* 宽度=舞台宽度 */
+        height: 5%; /* 高度占舞台 5%：只露出底部一条氛围光 */
+        z-index: 0; /* 层级最底：作为底层氛围 */
+        filter: blur(20px); /* 模糊：把 blob 变成柔光 */
+        mix-blend-mode: multiply; /* 混合模式：色彩相乘融合更自然 */
+        pointer-events: none; /* 不挡交互 */
+        opacity: 0; /* 初始透明：后续 JS 淡入 */
+        transition: opacity 2s ease; /* 透明度过渡：2 秒柔和淡入 */
+    }
+
+    .blob {
+        position: absolute; /* 每个色团绝对定位 */
+        border-radius: 50%; /* 圆形：基础 blob 形状 */
+        mix-blend-mode: multiply; /* 叠加混色 */
+        opacity: 0.7; /* 色团透明度：整体更柔 */
+        will-change: transform; /* 性能提示：transform 会频繁动画 */
+        bottom: -460%; /* 放到容器下方很深：只让上缘露出形成柔光上溢 */
+    }
+
+    /* 下面 5 个 blob：分别定义颜色/尺寸/位置/呼吸节奏（拆行仅为注释清晰，不改效果） */
+    .b-yellow {
+        background: #FFD761; /* 色团颜色：黄 */
+        width: 50%; /* 色团宽度：占 aurora-layer 50% */
+        height: 400%; /* 色团高度：非常高，配合 bottom 负值形成上溢柔光 */
+        left: -5%; /* 水平位置：稍微偏左 */
+        animation: breathe 2s infinite ease-in-out alternate; /* 呼吸：2s 往返循环，缓入缓出 */
+    }
+    .b-red {
+        background: #FF9593; /* 色团颜色：红粉 */
+        width: 50%;
+        height: 400%;
+        left: 15%; /* 向右偏移 */
+        animation: breathe 4s infinite ease-in-out alternate-reverse; /* 4s，反向往返，节奏错开更自然 */
+    }
+    .b-orange {
+        background: #82B6FF; /* 色团颜色：蓝（类名不影响效果） */
+        width: 50%;
+        height: 400%;
+        left: 30%;
+        opacity: 0.5; /* 单独更淡：避免底部颜色太重 */
+        animation: breathe 3s infinite ease-in-out alternate-reverse; /* 3s，反向往返 */
+    }
+    .b-purple {
+        background: #EE8BFF; /* 色团颜色：紫粉 */
+        width: 50%;
+        height: 400%;
+        left: 45%;
+        animation: breathe 3s infinite ease-in-out alternate;
+    }
+    .b-blue {
+        background: #82B6FF; /* 色团颜色：蓝 */
+        width: 50%;
+        height: 400%;
+        left: 65%;
+        animation: breathe 4s infinite ease-in-out alternate-reverse;
+    }
+
+    @keyframes breathe {
+        0%   { transform: translateY(0) scaleY(1) scaleX(1); } /* 初始：不位移、不缩放 */
+        100% { transform: translateY(-10%) scaleY(1.2) scaleX(1.05); } /* 结束：上移10%，纵向放大1.2，横向放大1.05 */
+    }
+
+    /* =========================================
+       UI 元素布局
+       ========================================= */
+    .main-layout {
+        display: flex; /* 主内容容器使用 flex */
+        flex-direction: column; /* 纵向排列（logo→搜索→site） */
+        align-items: center; /* 水平居中 */
+        justify-content: center; /* 自身区域内垂直居中 */
+        position: relative; /* 为内部定位提供参照 */
+        z-index: 10; /* 层级：压在底部 aurora 上方 */
+    }
+
+    .logo-img {
+        width: 500px; /* logo 宽度 */
+        height: 200px; /* logo 高度 */
+        object-fit: contain; /* 保持比例完整显示 */
+        margin-bottom: 0px; /* 与下方间距 */
+        display: block; /* 避免 img 行内默认间隙影响布局 */
+    }
+    .site-img {
+        width: 748px; /* site 区宽度 */
+        height: 106px; /* site 区高度 */
+        object-fit: contain; /* 保持比例完整显示 */
+        margin-top: 24px; /* 与搜索框距离 */
+        display: block;
+    }
+
+    .top-right-nav {
+        position: absolute; /* 绝对定位：固定在舞台右上 */
+        top: 119px; /* 紧贴 header 下方 */
+        right: 0; /* 贴右 */
+        width: 228px; /* 宽度 */
+        height: 48px; /* 高度 */
+        z-index: 20; /* 层级：高于主内容 */
+    }
+
+    .left-nav {
+        position: absolute; /* 绝对定位：固定在左侧 */
+        left: 20px; /* 距离舞台左边 20px */
+        top: 50%; /* 垂直居中基准点 */
+        transform: translateY(-50%); /* 真正垂直居中 */
+        width: 64px; /* 左侧导航宽度 */
+        height: 144px; /* 左侧导航高度 */
+        z-index: 20; /* 层级：高于主内容 */
+    }
+
+    /* =========================================
+       工作台入口组件
+       ========================================= */
+    .workbench-entry {
+        position: absolute; /* 绝对定位：悬浮在底部 */
+        bottom: 40px; /* 距离底部 40px */
+        left: 50%; /* 水平居中基准点 */
+        transform: translateX(-50%); /* 真正水平居中 */
+        z-index: 20; /* 层级：高于主内容 */
+        display: inline-flex; /* 行内 flex：内容横向排列 */
+        padding: 5px 12px; /* 内边距：上下 5，左右 12 */
+        align-items: center; /* 垂直居中对齐 */
+        gap: 4px; /* 子元素间距 */
+        background-color: #ffffff; /* 背景白 */
+        border-radius: 99px; /* 大圆角：胶囊 */
+        border: 1px solid rgba(0, 0, 0, 0.10); /* 细边框 */
+        box-sizing: border-box; /* padding 不撑大 */
+        cursor: pointer; /* 手型 */
+        transition: all 0.3s ease; /* hover 过渡更柔 */
+    }
+
+    .workbench-entry:hover {
+        background-color: #fafafa; /* hover 轻微变灰 */
+        border-color: rgba(0, 0, 0, 0.20); /* hover 边框更明显 */
+    }
+
+    @keyframes scroll-move {
+        0%   { transform: translateY(0); }  /* 起点 */
+        50%  { transform: translateY(2px); }/* 中间下移 2px */
+        100% { transform: translateY(0); }  /* 回到起点 */
+    }
+
+    .mouse-wheel-anim {
+        animation: scroll-move 1.2s ease-in-out infinite; /* 滚轮提示：1.2s 往返循环 */
+        transform-origin: center; /* 变换基点：中心 */
+    }
+
+    .entry-text {
+        display: -webkit-box; /* WebKit 多行截断容器模式 */
+        -webkit-box-orient: vertical; /* 垂直排布 */
+        -webkit-line-clamp: 1; /* 限制 1 行显示 */
+        overflow: hidden; /* 超出隐藏 */
+        text-overflow: ellipsis; /* 省略号 */
+        white-space: nowrap; /* 不换行 */
+        color: rgba(0, 0, 0, 0.90); /* 文字颜色：90% 黑 */
+        font-family: "Microsoft YaHei UI", sans-serif; /* 字体 */
+        font-size: 13px; /* 字号 */
+        font-style: normal; /* 正常样式 */
+        font-weight: 400; /* 字重 */
+        line-height: 22px; /* 行高 */
+        margin: 0 2px; /* 左右微间距 */
+    }
+
+    .avatar-carousel {
+        position: relative; /* 为内部 avatar-item 绝对定位提供参照 */
+        width: 42px; /* 容纳 3 个 16px 头像的叠放宽度 */
+        height: 16px; /* 高度=头像高度 */
+        flex-shrink: 0; /* 不压缩 */
+        margin-left: 4px; /* 与文字间距 */
+    }
+
+    .avatar-item {
+        position: absolute; /* 绝对定位：叠放+移动 */
+        width: 16px; /* 头像宽 */
+        height: 16px; /* 头像高 */
+        border: none; /* 无边框 */
+        border-radius: 50%; /* 圆形 */
+        object-fit: cover; /* 图片裁切填充 */
+        transition: all 0.5s ease-in-out; /* 轮播切换过渡 */
+        opacity: 0; /* 默认隐藏 */
+        transform: translateX(36px); /* 默认放在最右等待位 */
+        z-index: 0; /* 默认层级最低 */
+    }
+
+    .state-exit { transform: translateX(-12px); opacity: 0; z-index: 0; } /* 离场态：向左-12px 并隐藏 */
+    .state-1    { transform: translateX(0px);   opacity: 1; z-index: 10; } /* 第一位：最前显示 */
+    .state-2    { transform: translateX(12px);  opacity: 1; z-index: 9; }  /* 第二位：右移12px */
+    .state-3    { transform: translateX(24px);  opacity: 1; z-index: 8; }  /* 第三位：右移24px */
+    .state-wait { transform: translateX(36px);  opacity: 0; z-index: 7; }  /* 等待位：右移36px 隐藏 */
+
+    .arrow-icon-anim {
+        animation: bounce-vertical 1.5s infinite ease-in-out; /* 箭头上下轻跳提示：1.5s 循环 */
+    }
+
+    @keyframes bounce-vertical {
+        0%, 100% { transform: translateY(0); } /* 起止不动 */
+        50%      { transform: translateY(2px); } /* 中间下移 2px */
+    }
+
+    /* =========================================
+       搜索框样式
+       ========================================= */
+    .search-wrapper {
+        position: relative; /* 搜索框内部定位参照 */
+        width: 680px; /* 搜索框宽度 */
+        height: 48px; /* 搜索框高度 */
+        border-radius: 100px; /* 胶囊圆角 */
+        z-index: 1; /* 层级 */
+        flex-shrink: 0; /* 不压缩 */
+    }
+
+    .search-box {
+        position: relative; /* 内部定位参照 */
+        width: 100%; /* 撑满 wrapper */
+        box-sizing: border-box; /* padding 计入宽度 */
+        display: flex; /* 图标+输入框横向 */
+        height: 48px; /* 与 wrapper 一致 */
+        padding: 8px 12px 8px 16px; /* 内边距：左侧更大给图标空间 */
+        justify-content: space-between; /* 两端对齐（输入区域自适应） */
+        align-items: center; /* 垂直居中 */
+        align-self: stretch; /* 拉伸 */
+        border-radius: 100px; /* 圆角 */
+        background: var(---3, #FFF); /* 背景：fallback 白色（保持原写法，不改） */
+        box-shadow: 0 0 6px 0 rgba(0, 0, 0, 0.25); /* 阴影：浮起感 */
+    }
+
+    .search-icon {
+        width: 24px; /* 图标宽 */
+        height: 24px; /* 图标高 */
+        color: #9ca3af; /* 图标颜色：浅灰 */
+        margin-right: 8px; /* 与输入框间距 */
+        flex-shrink: 0; /* 不压缩 */
+    }
+
+    input {
+        flex: 1; /* 输入框占剩余空间 */
+        border: none; /* 去边框 */
+        outline: none; /* 去焦点外边框 */
+        background: transparent; /* 透明背景，显示搜索框白底 */
+        font-size: 16px; /* 字号 */
+        color: #1f2937; /* 字色 */
+        height: 100%; /* 撑满高度 */
+        min-width: 0; /* 允许 flex 下收缩，避免溢出 */
+    }
+
+    input::placeholder { color: #9ca3af; } /* placeholder 颜色 */
+
+    /* =========================================================
+       ✅ 扇叶动效样式
+       ========================================================= */
+    .fan-stage {
+        position: absolute; /* 绝对定位到舞台内 */
+        left: 50%; /* 水平居中基准 */
+        top: var(--top); /* 使用变量控制纵向位置 */
+        width: var(--w); /* 扇叶宽度变量 */
+        height: var(--h); /* 扇叶高度变量 */
+        transform: translateX(-50%); /* 真正水平居中 */
+        pointer-events: none; /* 不挡交互 */
+        isolation: isolate; /* 隔离混合 */
+        z-index: 5; /* 层级：在氛围底层之上 */
+
+        -webkit-mask-repeat: no-repeat; /* WebKit：mask 不重复 */
+        mask-repeat: no-repeat; /* 标准：mask 不重复 */
+
+        -webkit-mask-size: 100% 100%, 100% 100%; /* WebKit：两层 mask 都铺满 */
+        mask-size: 100% 100%, 100% 100%; /* 标准：两层 mask 都铺满 */
+
+        -webkit-mask-image:
+            radial-gradient(
+                ellipse at 50% 50%,
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) var(--maskSolid),
+                rgba(0,0,0,.55) var(--maskFeatherStart),
+                rgba(0,0,0,.10) var(--maskFeatherEnd),
+                rgba(0,0,0,0) 100%
+            ), /* 椭圆羽化：中心实、四周淡，防切割 */
+
+            linear-gradient(
+                90deg,
+                rgba(0,0,0,0) 0px,
+                rgba(0,0,0,1) var(--edgeFade),
+                rgba(0,0,0,1) calc(100% - var(--edgeFade)),
+                rgba(0,0,0,0) 100%
+            ); /* 左右羽化：两侧渐隐 */
+
+        mask-image:
+            radial-gradient(
+                ellipse at 50% 50%,
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) var(--maskSolid),
+                rgba(0,0,0,.55) var(--maskFeatherStart),
+                rgba(0,0,0,.10) var(--maskFeatherEnd),
+                rgba(0,0,0,0) 100%
+            ),
+            linear-gradient(
+                90deg,
+                rgba(0,0,0,0) 0px,
+                rgba(0,0,0,1) var(--edgeFade),
+                rgba(0,0,0,1) calc(100% - var(--edgeFade)),
+                rgba(0,0,0,0) 100%
+            ); /* 标准写法：同 WebKit */
+
+        -webkit-mask-composite: source-in; /* WebKit：多 mask 合成方式（取交集） */
+        mask-composite: intersect; /* 标准：取交集 */
+
+        transition: opacity 1.5s ease-out; /* 退场淡出过渡：JS 加 class 后触发 */
+    }
+
+    .fan-stage.is-hidden {
+        opacity: 0; /* 退场：透明度变 0 */
+    }
+
+    .content-mask {
+        position: absolute; /* 覆盖 fan-stage 内部 */
+        inset: 0; /* 铺满父容器（top/right/bottom/left=0） */
+        -webkit-mask-image: linear-gradient(
+            180deg,
+            rgba(0,0,0,0) 0px,
+            rgba(0,0,0,1) var(--edgeFade),
+            rgba(0,0,0,1) calc(100% - var(--edgeFade)),
+            rgba(0,0,0,0) 100%
+        ); /* 上下羽化：顶部/底部渐隐 */
+
+        mask-image: linear-gradient(
+            180deg,
+            rgba(0,0,0,0) 0px,
+            rgba(0,0,0,1) var(--edgeFade),
+            rgba(0,0,0,1) calc(100% - var(--edgeFade)),
+            rgba(0,0,0,0) 100%
+        ); /* 标准：同 WebKit */
+    }
+
+    .color-bleed {
+        position: absolute; /* 绝对定位 */
+        inset: -220px; /* 向外扩：避免 blur 被裁切产生硬边 */
+        z-index: 1; /* 在 panels 下方 */
+        background:
+            linear-gradient(
+                90deg,
+                rgb(255 100 100 / var(--aL1)) 0%,
+                rgb(180 120 255 / var(--aL2)) 50%,
+                rgb(80 150 255 / var(--aL3)) 100%
+            ), /* 线性渐变：红→紫→蓝（透明度由 aL1/2/3 控制） */
+
+            radial-gradient(
+                closest-side at 22% 52%,
+                rgb(255 100 100 / var(--aR1)),
+                transparent 64%
+            ), /* 径向光斑1：红（位置 22%/52%，透明度 aR1，64% 后渐隐） */
+
+            radial-gradient(
+                closest-side at 52% 52%,
+                rgb(180 120 255 / var(--aR2)),
+                transparent 66%
+            ), /* 径向光斑2：紫 */
+
+            radial-gradient(
+                closest-side at 82% 56%,
+                rgb(80 150 255 / var(--aR3)),
+                transparent 68%
+            ); /* 径向光斑3：蓝 */
+
+        opacity: 0; /* 初始透明：由入场动画逐步显现 */
+        filter: blur(calc(var(--bleedBlur) + 6px)) saturate(1) contrast(1); /* 初始更糊一点，且饱和/对比为基线 */
+
+        animation:
+            bleedIntro var(--bleedIntroDur) ease-out forwards,
+            aurora 6s ease-in-out var(--bleedIntroDur) infinite alternate; /* 第二段循环：6s 往返，延迟写在动画里（保持原逻辑） */
+
+        animation-delay:
+            var(--bleedIntroDelay),
+            calc(var(--bleedIntroDelay) + var(--bleedIntroDur)); /* 循环在入场结束后再开始 */
+    }
+
+    @keyframes bleedIntro {
+        to {
+            opacity: var(--bleedOpacity); /* 入场目标透明度 */
+            filter: blur(var(--bleedBlur)) saturate(var(--bleedSat)) contrast(var(--bleedContrast)); /* 入场收敛到目标模糊/饱和/对比 */
+        }
+    }
+
+    @keyframes aurora {
+        0% {
+            filter: blur(var(--bleedBlur)) saturate(var(--bleedSat)) contrast(var(--bleedContrast)) hue-rotate(0deg) scale(1);
+            /* hue-rotate(0deg)：起点不偏色；scale(1)：起点不缩放 */
+        }
+        100% {
+            filter: blur(calc(var(--bleedBlur) + 5px)) saturate(1.4) contrast(1.1) hue-rotate(20deg) scale(1.05);
+            /* 周期末：更糊+更彩+更对比+轻微偏色+轻微放大 → 产生“云雾呼吸漂移感” */
+        }
+    }
+
+    .panels {
+        position: absolute; /* 覆盖整个扇叶区域 */
+        inset: 0; /* 铺满 */
+        perspective: 920px; /* 3D 透视深度：越小透视越强，越大更平 */
+        z-index: 2; /* 在 color-bleed 上方 */
+    }
+
+    .panel {
+        position: absolute; /* 每片扇叶绝对定位 */
+        top: 0; /* 顶部对齐 */
+        height: 100%; /* 撑满父高 */
+        width: var(--pw); /* 每片宽度：JS 写入（最后一片可能不足 panelW） */
+        left: var(--px); /* 每片 x 坐标：JS 写入 */
+        transform-style: preserve-3d; /* 保留 3D：配合 rotateY 翻页 */
+
+        background:
+            linear-gradient(
+                180deg,
+                rgba(255,255,255,.84) 0%,
+                rgba(255,255,255,.52) 38%,
+                rgba(255,255,255,.70) 72%,
+                rgba(255,255,255,.84) 100%
+            ), /* 白光反射层：模拟材质高光 */
+
+            radial-gradient(
+                closest-side at 22% 52%,
+                rgb(255 100 100 / calc(.16 * var(--panelTint))),
+                transparent 64%
+            ), /* 扇叶映射层1：红（强度=0.16*panelTint） */
+
+            radial-gradient(
+                closest-side at 52% 52%,
+                rgb(180 120 255 / calc(.15 * var(--panelTint))),
+                transparent 66%
+            ), /* 扇叶映射层2：紫 */
+
+            radial-gradient(
+                closest-side at 82% 56%,
+                rgb(80 150 255 / calc(.14 * var(--panelTint))),
+                transparent 68%
+            ); /* 扇叶映射层3：蓝 */
+
+        filter: saturate(var(--panelSat)); /* 扇叶饱和度：由 panelSat 控制 */
+        background-size: 1000px 324px; /* 背景拼接尺寸：固定为大背景大小（确保分片拼起来连续） */
+        background-position: var(--bgx) 0; /* 背景偏移：JS 写入 -x，让每片截取不同区域避免拼接感 */
+        opacity: 0; /* 初始隐藏：由动画控制显示 */
+        transform-origin: left center; /* 翻页铰链：左侧中心 */
+        transform: translateX(-10px) rotateY(-78deg) scaleY(.985); /* 初始：稍左移+强折叠+轻微缩高 */
+
+        animation: fanReveal var(--cycle) linear forwards; /* 扇叶动画：周期由 JS 写入 --cycle */
+        animation-delay: calc(var(--i) * var(--stagger)); /* 每片延迟：i*stagger → 从左到右依次翻开 */
+    }
+
+    .panel.has-line::after {
+        content: ""; /* 伪元素：分割线用 */
+        position: absolute; /* 贴在分片右侧 */
+        top: 0;
+        right: 0;
+        width: var(--lineW); /* 线宽 */
+        height: 100%; /* 线高 */
+        background: var(--line); /* 线颜色 */
+        opacity: 0; /* 初始隐藏：动画控制 */
+        animation: lineStable var(--cycle) linear forwards; /* 分割线动画：同周期 */
+        animation-delay: calc(var(--i) * var(--stagger)); /* 同步分片延迟 */
+    }
+
+    @keyframes lineStable {
+        0%   { opacity: 0; }   /* 开始不显示 */
+        22%  { opacity: .92; } /* 快速变亮 */
+        28%  { opacity: .60; } /* 回落到稳定亮度 */
+        90%  { opacity: .60; } /* 保持稳定 */
+        100% { opacity: 0; }   /* 结束时隐藏 */
+    }
+
+    @keyframes fanReveal {
+        0%   { opacity: 0; transform: translateX(-10px) rotateY(-78deg) scaleY(.985); } /* 初始强折叠隐藏 */
+        18%  { opacity: 1; transform: none; } /* 快速展开到正常形态 */
+        28%  { transform: scaleY(1.035); } /* 轻微弹性：纵向放大 */
+        40%  { transform: scaleY(1); } /* 回到正常 */
+        82%  { opacity: 1; transform: scaleY(1); } /* 稳定显示 */
+        100% { opacity: 0; transform: scaleY(1); } /* 结束淡出 */
+    }
+</style>
+</head>
+
+<body>
+    <div class="stage-container"> <!-- 主舞台容器：1440×900 白底 -->
+
+        <!-- 顶部浏览器头部装饰图（仅视觉，不交互） -->
+        <img class="browser-header"
+             src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEOBQFpSmdVghuK7f51UBzrl8VG9oQGPwAC7SIAAig5UFaHgk4QpP5x2jYE.png"
+             alt="Browser Header">
+
+        <div class="aurora-layer"> <!-- 底部柔光容器：默认 opacity=0，后续 JS 淡入 -->
+            <div class="blob b-yellow"></div> <!-- 黄色柔光团（参数见 .b-yellow） -->
+            <div class="blob b-red"></div>    <!-- 红色柔光团 -->
+            <div class="blob b-orange"></div> <!-- 蓝色柔光团（类名不影响） -->
+            <div class="blob b-purple"></div> <!-- 紫色柔光团 -->
+            <div class="blob b-blue"></div>   <!-- 蓝色柔光团 -->
+        </div>
+
+        <!-- 右上角入口图 -->
+        <img class="top-right-nav"
+             src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEOAfxpSkcqFklGIlIU6lR49fZ-0ppMnAACkR8AAig5UFaFEXZjzGPKEzYE.png"
+             alt="AI Settings">
+
+        <!-- 左侧导航图 -->
+        <img class="left-nav"
+             src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEOAf1pSkcyn-PybzF_5BMRET60JdEXtQACkh8AAig5UFbBK6_21xiZMjYE.png"
+             alt="Navigation">
+
+        <div class="workbench-entry"> <!-- 底部“滑动进入工作台”胶囊 -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <!-- width/height：SVG 显示尺寸；viewBox：坐标系；fill="none"：默认不填充 -->
+                <path d="M7.5 1C10.5376 1 13 3.46243 13 6.5V10.5L12.9932 10.7832C12.8458 13.6892 10.4426 16 7.5 16C4.55741 16 2.15422 13.6892 2.00684 10.7832L2 10.5V6.5C2 3.46243 4.46243 1 7.5 1ZM7.5 2C5.01472 2 3 4.01472 3 6.5V10.5C3 12.9853 5.01472 15 7.5 15C9.98528 15 12 12.9853 12 10.5V6.5C12 4.01472 9.98528 2 7.5 2Z" fill="black" fill-opacity="0.9"/>
+                <!-- fill="black"：填充黑色；fill-opacity="0.9"：90% 不透明 -->
+                <path class="mouse-wheel-anim" d="M7.5 4C7.77614 4 8 4.22386 8 4.5V6.5C8 6.77614 7.77614 7 7.5 7C7.22386 7 7 6.77614 7 6.5V4.5C7 4.22386 7.22386 4 7.5 4Z" fill="black" fill-opacity="0.9"/>
+                <!-- class="mouse-wheel-anim"：绑定滚轮“上下轻动”动画 -->
+            </svg>
+
+            <span class="entry-text">滑动进入工作台</span> <!-- 入口文案：样式见 .entry-text -->
+
+            <div class="avatar-carousel"> <!-- 头像轮播容器：JS 切换 state-* class -->
+                <img class="avatar-item" src="https://p3.ssl.qhimg.com/t110b9a930149c019b9dfc1ee1b.png" alt="01">
+                <img class="avatar-item" src="https://p5.ssl.qhimg.com/t110b9a930139b8d3d4cfa306e8.png" alt="02">
+                <img class="avatar-item" src="https://p5.ssl.qhimg.com/t110b9a9301c37778cd00ce94b3.png" alt="03">
+                <img class="avatar-item" src="https://p1.ssl.qhimg.com/t110b9a930128195ce6ac573231.png" alt="04">
+                <img class="avatar-item" src="https://p0.ssl.qhimg.com/t110b9a93019884dd2fb3fa1ea8.png" alt="05">
+                <img class="avatar-item" src="https://p1.ssl.qhimg.com/t110b9a93010a1a9169d4017290.png" alt="06">
+            </div>
+
+            <svg class="arrow-icon-anim" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <!-- class="arrow-icon-anim"：箭头上下轻跳提示 -->
+                <path d="M11.7002 8.09961C11.9211 7.93422 12.2348 7.97944 12.4004 8.2002C12.5658 8.42109 12.5206 8.73478 12.2998 8.90039L8.2998 11.9004C8.12216 12.0334 7.87784 12.0334 7.7002 11.9004L3.7002 8.90039C3.47944 8.73477 3.43422 8.42107 3.59961 8.2002C3.7652 7.97942 4.07891 7.93426 4.2998 8.09961L8 10.874L11.7002 8.09961ZM11.7002 4.59961C11.9211 4.43422 12.2348 4.47944 12.4004 4.7002C12.5658 4.92109 12.5206 5.23478 12.2998 5.40039L8.2998 8.40039C8.12216 8.5334 7.87784 8.53341 7.7002 8.40039L3.7002 5.40039C3.47944 5.23477 3.43422 4.92107 3.59961 4.7002C3.7652 4.47942 4.07891 4.43426 4.2998 4.59961L8 7.37402L11.7002 4.59961Z" fill="black" fill-opacity="0.9"/>
+            </svg>
+        </div>
+
+        <div class="fan-stage"> <!-- 扇叶动效区域：mask/羽化/退场都在这里 -->
+            <div class="content-mask"> <!-- 上下额外羽化遮罩：防止上下切割 -->
+                <div class="color-bleed"></div> <!-- 底层彩色云雾：入场+漂移 -->
+                <div class="panels" id="fan-panels"></div> <!-- 扇叶分片容器：JS 动态创建 .panel -->
+            </div>
+        </div>
+
+        <div class="main-layout"> <!-- 主内容布局：logo + 搜索框 + site -->
+            <img class="logo-img"
+                 src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEOAgABaUpHRlB_Jz_kZItrw2IOBbXiPzMAApYfAAIoOVBWNjax8cX1k5Q2BA.png"
+                 alt="Logo">
+
+            <div class="search-wrapper"> <!-- 搜索框容器：控制尺寸与圆角 -->
+                <div class="search-box"> <!-- 搜索框主体：阴影、padding、白底 -->
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <!-- viewBox：坐标系；stroke-width：线粗；linecap/join：圆角端点更柔 -->
+                        <circle cx="11" cy="11" r="8"></circle> <!-- 放大镜圆：中心(11,11) 半径8 -->
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line> <!-- 放大镜柄 -->
+                    </svg>
+                    <input type="text" placeholder="搜索任何问题..."> <!-- 输入框：placeholder 提示文案 -->
+                </div>
+            </div>
+
+            <img class="site-img"
+                 src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEOAf9pSkc_O27S4jZYOqh-b0ZHME9YegAClR8AAig5UFYbpKPW9QxlpjYE.png"
+                 alt="Website Preview">
+        </div>
+    </div>
+
+<script>
+    const panelsEl = document.getElementById('fan-panels'); // 获取扇叶分片容器：用于 append 动态创建的 panel
+    const root = getComputedStyle(document.documentElement); // 读取 :root 的最终计算样式：用于取 CSS 变量
+
+    const W = parseInt(root.getPropertyValue('--w')) || 1000; // 扇叶总宽：从 --w 读，读不到就回退 1000
+    const panelW = parseInt(root.getPropertyValue('--panelW')) || 72; // 单片基础宽：从 --panelW 读，读不到回退 72
+    const stagger = parseFloat(root.getPropertyValue('--stagger')) || 0.075; // 分片延迟：从 --stagger 读，读不到回退 0.075（仅兜底）
+    const flipDur = parseFloat(root.getPropertyValue('--flipDur')) || 0.72; // 单片翻转时长：从 --flipDur 读，读不到回退 0.72（仅兜底）
+    const loopGap = parseFloat(root.getPropertyValue('--loopGap')) || 0.55; // 周期留白：从 --loopGap 读，读不到回退 0.55（仅兜底）
+
+    let x = 0; // 当前切片的起始 x（从左到右累加）
+    const pieces = []; // 保存每片 {x,w}：用于生成所有 panel
+
+    while (x < W) { // 当还没覆盖到总宽 W，就继续切片
+        const w = Math.min(panelW, W - x); // 当前片宽度：最后一片用剩余宽度，避免超出
+        pieces.push({ x, w }); // 记录该片的起点 x 与宽度 w
+        x += w; // 推进 x：进入下一片
+    }
+
+    const count = pieces.length; // 总片数：用于计算总周期
+    const cycle = (count - 1) * stagger + flipDur + loopGap; // 总周期：最后一片开始前的延迟总和 + 翻转时长 + 结尾留白
+
+    document.documentElement.style.setProperty('--cycle', cycle + 's'); // 写回 CSS 变量 --cycle：让 CSS animation 使用真实周期
+
+    pieces.forEach((p, i) => { // 为每一片创建 DOM
+        const el = document.createElement('div'); // 创建一片扇叶 div
+        el.className = 'panel' + (i < count - 1 ? ' has-line' : ''); // 除最后一片外加 has-line，用 ::after 画分割线
+        el.style.setProperty('--i', i); // --i：片序号，用于计算延迟 i*stagger
+        el.style.setProperty('--px', p.x + 'px'); // --px：该片 left 位置
+        el.style.setProperty('--pw', p.w + 'px'); // --pw：该片 width 宽度
+        el.style.setProperty('--bgx', -p.x + 'px'); // --bgx：背景偏移（负 x），让每片截取同一张大背景的不同区域，实现连续拼接
+        panelsEl.appendChild(el); // 插入到容器中
+    });
+
+    const fadeEarlyMs = 1800; // 提前淡出时间：让退场更自然，不是结束瞬间消失
+    const waitTime = Math.max(0, (cycle * 1000) - fadeEarlyMs); // 真正等待多久开始淡出：总周期毫秒 - 提前淡出
+
+    setTimeout(() => {
+        const stage = document.querySelector('.fan-stage'); // 找到扇叶舞台
+        stage.classList.add('is-hidden'); // 加 class 触发 opacity 过渡（CSS transition 1.5s）
+        setTimeout(() => {
+            stage.style.display = 'none'; // 淡出结束后 display none：彻底移除渲染与遮挡
+        }, 1500); // 1500ms 与 CSS transition 时长一致，避免闪
+    }, waitTime); // waitTime 后开始退场
+
+    setTimeout(() => {
+        document.querySelector('.aurora-layer').style.opacity = '1'; // 底部 aurora 淡入（CSS 有 transition 2s）
+    }, 500); // 延迟 500ms：让扇叶先吸引注意力，再补底部氛围
+
+    document.addEventListener('DOMContentLoaded', () => { // DOM 就绪后再做头像轮播，避免节点不存在
+        const items = document.querySelectorAll('.avatar-item'); // 获取所有头像
+        if(items.length === 0) return; // 没头像就退出，防止报错
+
+        const totalItems = items.length; // 头像总数
+        let step = 0; // 当前轮播步数（哪个头像处于 state-1）
+
+        updatePositions(); // 初始化排位
+
+        setInterval(() => {
+            step = (step + 1) % totalItems; // step 递增并取模：循环轮播
+            updatePositions(); // 更新每个头像的状态 class
+        }, 2000); // 2000ms 切换一次：轮播节奏（保持不动）
+
+        function updatePositions() {
+            items.forEach((item, index) => {
+                let offset = (index - step) % totalItems; // 计算当前头像相对主位的偏移
+                if (offset < 0) offset += totalItems; // 修正负模：保证 offset 为 0..totalItems-1
+
+                item.className = 'avatar-item'; // 重置 class，清掉旧状态
+
+                if (offset === 0) {
+                    item.classList.add('state-1'); // 主位
+                } else if (offset === 1) {
+                    item.classList.add('state-2'); // 第二位
+                } else if (offset === 2) {
+                    item.classList.add('state-3'); // 第三位
+                } else if (offset === totalItems - 1) {
+                    item.classList.add('state-exit'); // 离场位（左移淡出）
+                } else {
+                    item.classList.add('state-wait'); // 等待位（右侧隐藏）
+                }
+            });
+        }
+    });
+</script>
+</body>
+</html>
